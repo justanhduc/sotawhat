@@ -2,12 +2,23 @@
 
 This script runs using Python 3.
 
-## Requirements
+## Setup
+
+```
+git clone https://github.com/justanhduc/sotawhat.git
+```
 
 First, install the required packages. This script only requires ``nltk`` and ``pyspellchecker``.
 
 ```bash
 $ pip3 install -r requirements.txt
+```
+
+Then install the module
+
+```
+cd sotawhat
+pip3 install .
 ```
 
 ## Known bugs and fix
@@ -39,19 +50,19 @@ $ /Applications/Python\ 3.x/Install\ Certificates.command
 To query for a certain keyword, run:
 
 ```bash
-$ python3 sotawhat.py [keyword] [number of results]
+$ python3 -m sotawhat [keyword] [number of results]
 ```
 
 For example:
 
 ```bash
-$ python3 sotawhat.py perplexity 10
+$ python3 -m sotawhat perplexity 10
 ```
 
 or 
 
 ```bash
-$ python3 sotawhat.py language model 10
+$ python3 -m sotawhat language model 10
 ```
 
 If you don't specify the number of results, by default, the script returns 5 results. Each result contains the title of the paper with author and published date, a summary of the abstract, and link to the paper.
