@@ -50,19 +50,19 @@ $ /Applications/Python\ 3.x/Install\ Certificates.command
 To query for a certain keyword, run:
 
 ```bash
-$ python3 -m sotawhat [keyword] [number of results]
+$ python3 -m sotawhat [keyword] -n [number of results] -hn [show only papers with numerical results]
 ```
 
 For example:
 
 ```bash
-$ python3 -m sotawhat perplexity 10
+$ python3 -m sotawhat perplexity -n 10
 ```
 
 or 
 
 ```bash
-$ python3 -m sotawhat language model 10
+$ python3 -m sotawhat language model -n 10 -hn
 ```
 
 If you don't specify the number of results, by default, the script returns 5 results. Each result contains the title of the paper with author and published date, a summary of the abstract, and link to the paper.

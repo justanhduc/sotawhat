@@ -1,5 +1,5 @@
 import re
-import sys
+import argparse
 import urllib.error
 import urllib.request
 from spellchecker import SpellChecker
@@ -109,7 +109,7 @@ def is_list_numer(tokens, i, value):
     if i == len(tokens) - 1:
         return False
 
-    if (i == 0 or tokens[i - 1] in set(['(', '.', ':'])) and tokens[i + 1] == ')':
+    if (i == 0 or tokens[i - 1] in {'(', '.', ':'}) and tokens[i + 1] == ')':
         return True
     return False
 
@@ -141,7 +141,7 @@ def contains_sota(sent):
     return 'state-of-the-art' in sent or 'state of the art' in sent or 'SOTA' in sent
 
 
-def extract_line(abstract, keyword, limit):
+def extract_line(abstract, keyword, return_has_number):
     lines = []
     numbered_lines = []
     kw_mentioned = False
@@ -151,40 +151,37 @@ def extract_line(abstract, keyword, limit):
     for i, sent in enumerate(sentences):
         if keyword in sent.lower():
             kw_mentioned = True
-            if has_number(sent):
-                numbered_lines.append(sent)
-            elif contains_sota(sent):
+            if return_has_number and (has_number(sent) or contains_sota(sent)):
                 numbered_lines.append(sent)
             else:
                 kw_sentences.append(sent)
                 lines.append(sent)
             continue
 
-        if kw_mentioned and has_number(sent):
+        if kw_mentioned and return_has_number and has_number(sent):
             if not numbered_lines:
                 numbered_lines.append(kw_sentences[-1])
             numbered_lines.append(sent)
         if kw_mentioned and contains_sota(sent):
             lines.append(sent)
 
-    if len(numbered_lines) > 0:
-        return '. '.join(numbered_lines), True
-    return '. '.join(lines[-2:]), False
+    return ('. '.join(numbered_lines), True) if return_has_number and len(numbered_lines) > 0 else ('. '.join(
+        lines[-2:]), False)
 
 
-def get_report(paper, keyword):
+def get_report(paper, keyword, return_has_number):
     if keyword in paper['abstract'].lower():
         title = h.unescape(paper['title'])
         headline = '{} ({} - {})\n'.format(title, paper['authors'][0], paper['date'])
         abstract = h.unescape(paper['abstract'])
-        extract, has_number = extract_line(abstract, keyword, 280 - len(headline))
+        extract, has_number = extract_line(abstract, keyword, return_has_number)
         if extract:
             report = headline + extract + '\nLink: {}'.format(paper['main_page'])
             return report, has_number
     return '', False
 
 
-def txt2reports(txt, keyword, num_to_show):
+def txt2reports(txt, keyword, num_to_show, return_has_number):
     found = False
     txt = ''.join(chr(c) for c in txt)
     lines = txt.split('\n')
@@ -201,10 +198,13 @@ def txt2reports(txt, keyword, num_to_show):
         if line == '<li class="arxiv-result">':
             found = True
             paper, i = get_next_result(lines, i)
-            report, has_number = get_report(paper, keyword)
+            report, has_number = get_report(paper, keyword, return_has_number)
 
-            if has_number:
-                print(report)
+            if report and (not return_has_number or (return_has_number and has_number)):
+                try:
+                    print(report)
+                except UnicodeEncodeError:
+                    print(report.encode('utf-8'))
                 print('====================================================')
                 num_to_show -= 1
             elif report:
@@ -214,22 +214,31 @@ def txt2reports(txt, keyword, num_to_show):
     return unshown, num_to_show, found
 
 
-def get_papers(keyword, num_results=5):
+def get_papers(keyword, num_results, return_has_number):
     """
     If keyword is an English word, then search in CS category only to avoid papers from other categories, resulted from the ambiguity
     """
 
-    if keyword in set(['GAN', 'bpc']):
-        query_temp = 'https://arxiv.org/search/advanced?advanced=&terms-0-operator=AND&terms-0-term={}&terms-0-field=all&classification-computer_science=y&classification-physics_archives=all&date-filter_by=all_dates&date-year=&date-from_date=&date-to_date=&date-date_type=submitted_date&abstracts=show&size={}&order=-announced_date_first&start={}'
-        keyword = keyword.lower()
+    keyword = keyword.lower()
+    if keyword in {'gan', 'bpc', 'vae', 'vaes', 'cnn'}:
+        query_temp = 'https://arxiv.org/search/advanced?advanced=&terms-0-operator=AND&terms-0-term={}&terms-0-field=' \
+                     'all&classification-computer_science=y&classification-eess=y&classification-mathematics=y&' \
+                     'classification-physics_archives=math-ph&classification-statistics=y&date-filter_by=all_dates&' \
+                     'date-year=&date-from_date=&date-to_date=&date-date_type=submitted_date&abstracts=show&size={}&' \
+                     'order=-announced_date_first&start={}'
     else:
-        keyword = keyword.lower()
         words = keyword.split()
         d = SpellChecker()
         if not d.unknown(words):
-            query_temp = 'https://arxiv.org/search/advanced?advanced=&terms-0-operator=AND&terms-0-term={}&terms-0-field=all&classification-computer_science=y&classification-physics_archives=all&date-filter_by=all_dates&date-year=&date-from_date=&date-to_date=&date-date_type=submitted_date&abstracts=show&size={}&order=-announced_date_first&start={}'
+            query_temp = 'https://arxiv.org/search/advanced?advanced=&terms-0-operator=AND&terms-0-term={}&' \
+                         'terms-0-field=all&classification-computer_science=y&classification-eess=y&' \
+                         'classification-mathematics=y&classification-physics_archives=math-ph&' \
+                         'classification-statistics=y&date-filter_by=all_dates&date-year=&date-from_date=&' \
+                         'date-to_date=&date-date_type=submitted_date&abstracts=show&size={}&' \
+                         'order=-announced_date_first&start={}'
         else:
-            query_temp = 'https://arxiv.org/search/?searchtype=all&query={}&abstracts=show&size={}&order=-announced_date_first&start={}'
+            query_temp = 'https://arxiv.org/search/?searchtype=all&query={}&abstracts=show&size={}&' \
+                         'order=-announced_date_first&start={}'
     keyword_q = keyword.replace(' ', '+')
     page = 0
     per_page = 200
@@ -247,14 +256,17 @@ def get_papers(keyword, num_results=5):
             return
 
         txt = response.read()
-        unshown, num_to_show, found = txt2reports(txt, keyword, num_to_show)
+        unshown, num_to_show, found = txt2reports(txt, keyword, num_to_show, return_has_number)
         if not found and not all_unshown and num_to_show == num_results:
             print('Sorry, we were unable to find any abstract with the word {}'.format(keyword))
             return
 
         if num_to_show < num_results / 2 or not found:
             for report in all_unshown[:num_to_show]:
-                print(report)
+                try:
+                    print(report)
+                except UnicodeEncodeError:
+                    print(report.encode('utf-8'))
                 print('====================================================')
             if not found:
                 return
@@ -265,18 +277,14 @@ def get_papers(keyword, num_results=5):
 
 
 def main():
-    if len(sys.argv) < 2:
-        raise ValueError('You must specify a keyword')
+    parser = argparse.ArgumentParser(description='Find papers on Arxiv matching the specified keyword.')
+    parser.add_argument('keyword', type=str, nargs='+', help='Keyword for the search')
+    parser.add_argument('--num_results', '-n', type=int, help='Number of results to return', default=5)
+    parser.add_argument('--has_number', '-hn', action='store_true',
+                        help='Return only papers having numbers in their abstracts')
+    args = parser.parse_args()
 
-    try:
-        num_results = int(sys.argv[-1])
-        assert num_results > 0, 'You must choose to show a positive number of results'
-        keyword = ' '.join(sys.argv[1:-1])
-    except ValueError:
-        keyword = ' '.join(sys.argv[1:])
-        num_results = 5
-
-    get_papers(keyword, num_results)
+    get_papers(' '.join(args.keyword), args.num_results, args.has_number)
 
 
 if __name__ == '__main__':
